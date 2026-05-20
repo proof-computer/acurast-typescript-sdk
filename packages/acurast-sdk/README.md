@@ -54,6 +54,16 @@ import {
 
 Helpers include `convertConfigToJob`, duration constants (`second`, `minute`, `hour`, `day`), sensible defaults (`DEFAULT_REWARD`, `DEFAULT_REPLICAS`, ...), the `JobEnvironmentService` for encrypted env vars, and an `InMemoryKeyStore`.
 
+For server integrations that need to keep HTTP event loops responsive, the
+chain module also exposes lower-level transaction lifecycle helpers. Use
+`buildDeployExtrinsic` / `AcurastService.buildSetEnvironmentsExtrinsic` to
+prepare calls separately from signing and broadcasting, and `signAndSendTx` or
+`signAndSendDeployExtrinsic` when you need timeout, abort, phase, yield, and
+unsubscribe cleanup hooks. The hooks are cooperative: they let applications
+yield between SDK-controlled stages, while synchronous Polkadot codec/signing
+work should be isolated in a worker or separate process when hard latency
+bounds are required.
+
 ### `@acurast/sdk/ipfs`
 
 Upload deployment scripts to IPFS.

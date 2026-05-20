@@ -20,6 +20,12 @@ import {
   type JobId,
   type MultiOrigin,
 } from '../types/env.js'
+import {
+  type AcurastOperationOptions,
+  type AcurastSignAndSendOptions,
+  signAndSendTx,
+  yieldAcurastPhase,
+} from './transaction.js'
 
 export const ACURAST_DECIMALS: number = 12
 
@@ -221,7 +227,7 @@ export class AcurastService {
     return result as JobAssignmentInfo[]
   }
 
-  private jobEnvironmentToCodec(api: ApiPromise, jobEnvironment: JobEnvironmentEncrypted): Codec {
+  public jobEnvironmentToCodec(api: ApiPromise, jobEnvironment: JobEnvironmentEncrypted): Codec {
     const publicKey = `0x${jobEnvironment.publicKey}`
     const variables = jobEnvironment.variables.map((variable) => {
       const key = `0x${Buffer.from(variable.key).toString('hex')}`
@@ -239,33 +245,70 @@ export class AcurastService {
     keyring: KeyringPair,
     jobId: number,
     jobEnvironment: JobEnvironmentEncrypted,
+    options?: AcurastSignAndSendOptions,
   ): Promise<Hash> {
-    const api = await this.connect()
-    const acurastJobEnvironment = this.jobEnvironmentToCodec(api, jobEnvironment)
-    return this.signAndSend(api, keyring, [
-      api.tx['acurast']['setEnvironment'](jobId, keyring.address, acurastJobEnvironment),
-    ])
+    const tx = await this.buildSetEnvironmentExtrinsic(
+      keyring.address,
+      jobId,
+      jobEnvironment,
+      options,
+    )
+    return this.signAndSend(keyring, [tx], {
+      phasePrefix: 'acurast.setEnvironment',
+      ...options,
+    })
   }
 
   public async setEnvironments(
     keyring: KeyringPair,
     jobId: number,
     jobEnvironments: JobEnvironmentsEncrypted,
+    options?: AcurastSignAndSendOptions,
   ): Promise<Hash> {
+    const tx = await this.buildSetEnvironmentsExtrinsic(jobId, jobEnvironments, options)
+    return this.signAndSend(keyring, [tx], {
+      phasePrefix: 'acurast.setEnvironments',
+      ...options,
+    })
+  }
+
+  public async buildSetEnvironmentExtrinsic(
+    processor: string,
+    jobId: number,
+    jobEnvironment: JobEnvironmentEncrypted,
+    options?: AcurastOperationOptions,
+  ): Promise<SubmittableExtrinsic<'promise', any>> {
     const api = await this.connect()
+    await yieldAcurastPhase(options, 'acurast.setEnvironment.encode')
+    const acurastJobEnvironment = this.jobEnvironmentToCodec(api, jobEnvironment)
+    return api.tx['acurast']['setEnvironment'](jobId, processor, acurastJobEnvironment)
+  }
+
+  public async buildSetEnvironmentsExtrinsic(
+    jobId: number,
+    jobEnvironments: JobEnvironmentsEncrypted,
+    options?: AcurastOperationOptions,
+  ): Promise<SubmittableExtrinsic<'promise', any>> {
+    const api = await this.connect()
+    await yieldAcurastPhase(options, 'acurast.setEnvironments.encode')
     const acurastJobEnvironments = jobEnvironments.map((x) => [
       x.processor,
       this.jobEnvironmentToCodec(api, x.jobEnvironment),
     ])
 
-    return this.signAndSend(api, keyring, [
-      api.tx['acurast']['setEnvironments'](jobId, acurastJobEnvironments),
-    ])
+    return api.tx['acurast']['setEnvironments'](jobId, acurastJobEnvironments)
   }
 
-  public async deregisterJob(keyring: KeyringPair, localJobId: number): Promise<Hash> {
+  public async deregisterJob(
+    keyring: KeyringPair,
+    localJobId: number,
+    options?: AcurastSignAndSendOptions,
+  ): Promise<Hash> {
     const api = await this.connect()
-    return this.signAndSend(api, keyring, [api.tx['acurast']['deregister'](localJobId)])
+    return this.signAndSend(keyring, [api.tx['acurast']['deregister'](localJobId)], {
+      phasePrefix: 'acurast.deregister',
+      ...options,
+    })
   }
 
   private codecToMultiOrigin(codec: Codec): MultiOrigin {
@@ -276,10 +319,11 @@ export class AcurastService {
   }
 
   private async signAndSend(
-    api: ApiPromise,
     keyring: KeyringPair,
     calls: SubmittableExtrinsic<'promise', any>[],
+    options?: AcurastSignAndSendOptions,
   ): Promise<Hash> {
+    const api = await this.connect()
     let call: SubmittableExtrinsic<'promise', any>
     if (calls.length > 1) {
       call = api.tx.utility.batch(calls)
@@ -287,22 +331,12 @@ export class AcurastService {
       call = calls[0]
     }
 
-    return new Promise(async (resolve, reject) => {
-      const unsub = await call
-        .signAndSend(keyring, ({ status, events: _events, dispatchError }) => {
-          if (dispatchError) {
-            const humanReadableError = getHumanReadableError(api, dispatchError)
-            if (unsub) unsub()
-            reject(new Error(humanReadableError))
-            return
-          }
-          if (status.isInBlock) {
-            if (unsub) unsub()
-            resolve(status.hash)
-            return
-          }
-        })
-        .catch(reject)
+    return signAndSendTx(call, keyring, {
+      ...options,
+      formatDispatchError: (dispatchError) => {
+        const humanReadableError = getHumanReadableError(api, dispatchError)
+        return new Error(humanReadableError)
+      },
     })
   }
 

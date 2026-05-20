@@ -17,6 +17,7 @@ import { AcurastService } from './acurast-service.js'
 import type { KeyringPair } from '@polkadot/keyring/types'
 import type { KeyStore } from './key-store.js'
 import { InMemoryKeyStore } from './key-store.js'
+import { type AcurastSignAndSendOptions, yieldAcurastPhase } from './transaction.js'
 
 export class JobEnvironmentService {
   private readonly acurastService: AcurastService
@@ -169,9 +170,11 @@ export class JobEnvironmentService {
     assignment: JobAssignmentInfo,
     jobId: number,
     jobEnvironmentVariables: EnvVar[],
+    options?: AcurastSignAndSendOptions,
   ) {
     const processorEncryptionKey = getProcessorEncryptionKey(assignment)
     if (processorEncryptionKey !== undefined) {
+      await yieldAcurastPhase(options, 'acurast.env.encrypt.assignment')
       const sharedKey = await this.generateSharedKey(
         processorEncryptionKey.publicKey,
         processorEncryptionKey.curve,
@@ -190,7 +193,7 @@ export class JobEnvironmentService {
           publicKey,
           variables: encryptedEnvironment,
         }
-        return this.setEnvironment(keyring, jobId, jobEnvironment)
+        return this.setEnvironment(keyring, jobId, jobEnvironment, options)
       }
       return undefined
     }
@@ -201,8 +204,9 @@ export class JobEnvironmentService {
     keyring: KeyringPair,
     jobId: number,
     jobEnvironment: JobEnvironmentEncrypted,
+    options?: AcurastSignAndSendOptions,
   ): Promise<{ hash: string }> {
-    const hash = await this.acurastService.setEnvironment(keyring, jobId, jobEnvironment)
+    const hash = await this.acurastService.setEnvironment(keyring, jobId, jobEnvironment, options)
     return { hash: hash.toString() }
   }
 
@@ -211,6 +215,7 @@ export class JobEnvironmentService {
     assignments: JobAssignmentInfo[],
     jobId: number,
     jobEnvironmentVariables: EnvVar[],
+    options?: AcurastSignAndSendOptions,
   ) {
     const jobEnvironments: JobEnvironmentsEncrypted = []
 
@@ -218,6 +223,7 @@ export class JobEnvironmentService {
       const processorEncryptionKey = getProcessorEncryptionKey(assignment)
 
       if (processorEncryptionKey !== undefined) {
+        await yieldAcurastPhase(options, 'acurast.env.encrypt.assignment')
         const sharedKey = await this.generateSharedKey(
           processorEncryptionKey.publicKey,
           processorEncryptionKey.curve,
@@ -245,15 +251,16 @@ export class JobEnvironmentService {
       }
     }
 
-    return this.setEnvironments(keyring, jobId, jobEnvironments)
+    return this.setEnvironments(keyring, jobId, jobEnvironments, options)
   }
 
   private async setEnvironments(
     keyring: KeyringPair,
     jobId: number,
     jobEnvironments: JobEnvironmentsEncrypted,
+    options?: AcurastSignAndSendOptions,
   ): Promise<{ hash: string }> {
-    const hash = await this.acurastService.setEnvironments(keyring, jobId, jobEnvironments)
+    const hash = await this.acurastService.setEnvironments(keyring, jobId, jobEnvironments, options)
     return { hash: hash.toString() }
   }
 }

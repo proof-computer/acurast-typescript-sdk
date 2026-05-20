@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Chain transaction lifecycle helpers for long-running server integrations:
+  - `buildDeployExtrinsic` and `signAndSendDeployExtrinsic` split deploy call
+    construction from submission.
+  - `signAndSendTx`, `yieldAcurastPhase`, `acurastDelay`, and shared lifecycle
+    option types add timeout, abort, phase, cooperative-yield, and cleanup
+    support.
+  - `AcurastService` now exposes environment codec construction and
+    `buildSetEnvironment(s)Extrinsic` helpers.
+
+### Fixed
+
+- `setEnvVars` now uses bounded polling with timeout/abort support instead of
+  recursive service creation, and disconnects internally owned services.
+- SDK transaction helpers unsubscribe on timeout, abort, dispatch errors, and
+  early callback completion paths.
+
 ## 1.1.1
 
 ### Added

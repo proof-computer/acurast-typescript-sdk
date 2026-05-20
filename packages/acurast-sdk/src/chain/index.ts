@@ -23,8 +23,14 @@ export {
   isStartAtMsFromNow,
   isStartAtTimestamp,
 } from './config-to-job.js'
-export { registerJob } from './register-job.js'
-export type { RegisterJobOptions } from './register-job.js'
+export { registerJob, buildDeployExtrinsic, signAndSendDeployExtrinsic } from './register-job.js'
+export type {
+  BuildDeployExtrinsicOptions,
+  RegisterJobOptions,
+  RegisterJobResult,
+} from './register-job.js'
+export { acurastDelay, signAndSendTx, throwIfAborted, yieldAcurastPhase } from './transaction.js'
+export type { AcurastOperationOptions, AcurastSignAndSendOptions } from './transaction.js'
 export {
   parseByteSize,
   buildBenchmarkMetricTriples,

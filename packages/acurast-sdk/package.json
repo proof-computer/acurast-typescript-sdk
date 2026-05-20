@@ -42,6 +42,7 @@
   "scripts": {
     "build": "rm -rf ./dist && tsc",
     "clean": "rm -rf dist",
+    "prepare": "tsc",
     "test": "jest",
     "test:ci": "jest"
   },
